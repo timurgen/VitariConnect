@@ -7,8 +7,7 @@ func main() {
 	//trying to get customers
 	f :=  Filter{}
 
-	AddRowToFilter(&f, CreateFilterRow("Year", EqualTo, "2017", ""))
-	AddRowToFilter(&f, CreateFilterRow("Period", EqualTo, "1", "AND"))
+	AddRowToFilter(&f, CreateFilterRow("OrgUnit1", GreaterThanOrEqualTo, "70000", ""))
 
-	vismaApi.GetLedgerTransactions(f)
+	vismaApi.GetCostUnits(f, 1)
 }

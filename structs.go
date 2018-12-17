@@ -80,7 +80,9 @@ type Customer struct {
 	Information8 string
 }
 
-//Accounting data
+///// Accounting data /////
+
+//LedgerTransactions
 type LedgerTransactionInfo struct {
 	LedgerTransactionInfo string `xml:"LedgerTransactionInfo"`
 	Status Status `xml:"Status"`
@@ -99,4 +101,41 @@ type LedgerTransaction struct {
 	AccountNo int
 	OrgUnit1 int
 	PostedAmountDomestic float32
+}
+
+//CostUnits
+
+type CostUnitinfo struct {
+	CostUnitinfo string `xml:"CostUnitinfo"`
+	Status Status `xml:"Status"`
+	CostUnit []CostUnit `xml:"CostUnit"`
+}
+
+type CostUnit struct {
+	CostUnitNumber int
+	OrgUnit1 int
+	OrgUnit2 int
+	OrgUnit3 int
+	OrgUnit4 int
+	OrgUnit5 int
+	OrgUnit6 int
+	OrgUnit7 int
+	OrgUnit8 int
+	OrgUnit9 int
+	OrgUnit10 int
+	OrgUnit11 int
+	OrgUnit12 int
+	Name string
+	AddressLine1 string
+	AddressLine2 string
+	AddressLine3 string
+	AddressLine4 string
+	PostCode string
+	PostalArea string
+	CustomerNo int
+	Status int
+	PlannedStartDate string
+	PlannedEndDate string
+	ActualStartDate string
+	ActualEndDate string
 }

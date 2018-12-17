@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +16,7 @@ import (
 func NewApi(url string, guid string, clientId int) *Api {
 	return &Api{url, guid, clientId}
 }
+
 // API object, consists of URL to Visma service with trailing / eg http://erp.vitari.no/vbws/
 //guid and client id
 type Api struct {
@@ -22,44 +24,56 @@ type Api struct {
 	guid     string
 	clientId int
 }
+
 //GetCustomers send request to Visma GetCustomers end point
-//return struct with response. Check Message part for any error codes after receiving
-func (r *Api) GetCustomers(f Filter) Customers{
-	//build xml request body
-	queryBody := buildQuery(GetCustomers, "{header}", BuildHeader(r.guid, r.clientId), "{filters}", RenderFilter(f))
-	//make request
-	customerBytes, err := makeVismaApiRequest(r, "Customer.svc/GetCustomers", queryBody)
+//return struct with response. Check Message part for any error codes after receiving. any MessageID > 0 are error codes
+func (r *Api) GetCustomers(f Filter) Customers {
+	queryBody := buildQuery(GetCustomers, "{header}", BuildHeader(r.guid, r.clientId), "{filters}",
+		RenderFilter(f))
+	responseBytes, err := makeVismaApiRequest(r, "Customer.svc/GetCustomers", queryBody)
 	if err != nil {
 		fmt.Println(err)
 	}
-	var customers Customers
 
-	xml.Unmarshal(customerBytes, &customers)
+	var customers Customers
+	xml.Unmarshal(responseBytes, &customers)
+
 	return customers
 }
 
-func (r *Api) GetCostUnits(f Filter) {
-	//build xml request body
-	//make request
-	//parse xml response
-	fmt.Println("GetCostUnits fired")
-}
-
-func (r *Api) GetLedgerTransactions(f Filter) LedgerTransactionInfo{
-	//build xml request body
-	queryBody := buildQuery(GetLedgerTransactions, "{header}", BuildHeader(r.guid, r.clientId), "{filters}", RenderFilter(f))
-	//make request
-	customerBytes, err := makeVismaApiRequest(r, "Accounting.svc/GetLedgerTransactions", queryBody)
+//GetCostUnits returns CostUnits based on filter and costUnitNumber parameter
+//return struct with response. Check Message part for any error codes after receiving. any MessageID > 0 are error codes
+func (r *Api) GetCostUnits(f Filter, costUnitNumber int) CostUnitinfo {
+	queryBody := buildQuery(GetCostUnits, "{header}", BuildHeader(r.guid, r.clientId),
+		"{filters}", RenderFilter(f), "{costUnitNumber}", strconv.Itoa(costUnitNumber))
+	responseBytes, err := makeVismaApiRequest(r, "Accounting.svc/GetCostUnits", queryBody)
 	if err != nil {
 		fmt.Println(err)
 	}
-	var ledgerTransactionInfo LedgerTransactionInfo
 
-	xml.Unmarshal(customerBytes, &ledgerTransactionInfo)
+	var costUnitInfo CostUnitinfo
+	xml.Unmarshal(responseBytes, &costUnitInfo)
+
+	return costUnitInfo
+}
+
+//GetLedgerTransactions returns GetLedgerTransactions based on filter
+//return struct with response. Check Message part for any error codes after receiving. any MessageID > 0 are error codes
+func (r *Api) GetLedgerTransactions(f Filter) LedgerTransactionInfo {
+	queryBody := buildQuery(GetLedgerTransactions, "{header}", BuildHeader(r.guid, r.clientId), "{filters}",
+		RenderFilter(f))
+	responseBytes, err := makeVismaApiRequest(r, "Accounting.svc/GetLedgerTransactions", queryBody)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	var ledgerTransactionInfo LedgerTransactionInfo
+	xml.Unmarshal(responseBytes, &ledgerTransactionInfo)
+
 	return ledgerTransactionInfo
 }
 
-//makeVismaApiRequest construct and make HTTP request to Visma instance
+//makeVismaApiRequest internal function construct and make HTTP request to Visma instance
 func makeVismaApiRequest(r *Api, endpoint string, queryBody string) ([]byte, error) {
 	resp, err := http.Post(r.url+endpoint, "text/plain", strings.NewReader(queryBody))
 	if err != nil {
