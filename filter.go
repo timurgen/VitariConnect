@@ -1,4 +1,4 @@
-package visma
+package main
 
 import (
 	"errors"
