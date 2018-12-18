@@ -1,13 +1,165 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/gorilla/mux"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
+)
+
+var api *Api
+//simple REST service to fetch data from Vitari Connect API and return as JSON
 func main() {
-	vismaApi := NewApi("http://erp.vitari.no/vbws/", "XXXX-XXXX-XXXX-XXXX-XXXX", 9999)
+	vismaUrl := os.Getenv("VISMA_URL")
+	if vismaUrl == "" {
+		//panic("URL for Vitari Connect instance not found")
+	}
+
+	vismaGuid := os.Getenv("VISMA_GUID")
+	vismaClientId := os.Getenv("VISMA_CLIENTID")
+	api = NewApi(vismaUrl, vismaGuid, vismaClientId)
+
+	wsPort := os.Getenv("PORT")
+	if wsPort == "" {
+		wsPort = "8080"
+	}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/datasets/Customer/entities", _GetCustomers).Methods("GET")
+	router.HandleFunc("/datasets/CostUnit/entities", _GetCostUnits).Methods("GET")
+	router.HandleFunc("/datasets/LedgerTransaction/entities", _GetLedgerTransactions).Methods("GET")
+
+	log.Printf("Starting service on port %s", wsPort)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", wsPort), router))
+
+}
+
+func _GetLedgerTransactions(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
+	currentTime := time.Now()
+	currentYear := currentTime.Year()
+	currentMonth := int(currentTime.Month())
+	since := r.URL.Query().Get("since")
+	var year int
+	var month int
+	if since == "" {
+		year = currentTime.Year()
+		month = int(currentTime.Month())
+	} else {
+		layout := "2006-01-02T15:04:05.000-0700"
+		//layout:= time.RFC3339
+		t, err := time.Parse(layout, since)
+		if err != nil {
+			log.Printf("Couldn't parse date time from since %s", since)
+			year = currentTime.Year()
+			month = int(currentTime.Month())
+		} else {
+			year = t.Year()
+			month = int(t.Month())
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte("["))
+	first := true
+	for ; year <= currentYear; year++ {
+		for ; month <= currentMonth; month++ {
+			var f Filter
+			AddRowToFilter(&f, CreateFilterRow("Year", EqualTo, strconv.Itoa(year), ""))
+			AddRowToFilter(&f, CreateFilterRow("Period", EqualTo, strconv.Itoa(month), "AND"))
+			transactions := api.GetLedgerTransactions(f)
+			if transactions.Status.MessageID != 0 {
+				log.Printf("Couldn't fetch transactions: %s", transactions.Status.Message)
+				w.Write([]byte("]"))
+				return
+			}
+			for _, transaction := range transactions.LedgerTransactions.LedgerTransaction {
+				if first {
+					first = false
+				} else {
+					w.Write([]byte(","))
+				}
+				jsonData, err := json.Marshal(transaction)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				w.Write(jsonData)
+
+			}
+		}
+	}
+	w.Write([]byte("]"))
+
+}
+func _GetCustomers(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
+	var f Filter
+	var first = true
+	AddRowToFilter(&f, CreateFilterRow("CustomerNo",GreaterThanOrEqualTo, "0", "" ))
+	customers := api.GetCustomers(f)
+	if customers.Status.MessageID != 0 {
+		log.Printf("Couldn't fetch transactions: %s", customers.Status.Message)
+		http.Error(w, customers.Status.Message, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte("["))
+	for _, customer := range customers.Customers {
+		if first {
+			first = false
+		} else {
+			w.Write([]byte(","))
+		}
+		jsonData, err := json.Marshal(customer)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(jsonData)
+
+	}
+	w.Write([]byte("]"))
 
 
-	//trying to get customers
-	f :=  Filter{}
+}
+func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
 
-	AddRowToFilter(&f, CreateFilterRow("OrgUnit1", GreaterThanOrEqualTo, "70000", ""))
+	var f Filter
+	var first = true
+	var orgUnit = r.URL.Query().Get("orgUnit")
+	costUnitNumber,_ := strconv.Atoi(r.URL.Query().Get("costUnitNumber"))
 
-	vismaApi.GetCostUnits(f, 1)
+	AddRowToFilter(&f, CreateFilterRow("OrgUnit1", GreaterThanOrEqualTo, orgUnit, ""))
+	costUnits := api.GetCostUnits(f, costUnitNumber)
+
+	if costUnits.Status.MessageID != 0 {
+		log.Printf("Couldn't fetch transactions: %s", costUnits.Status.Message)
+		http.Error(w, costUnits.Status.Message, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte("["))
+	for _, customer := range costUnits.CostUnit {
+		if first {
+			first = false
+		} else {
+			w.Write([]byte(","))
+		}
+		jsonData, err := json.Marshal(customer)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(jsonData)
+
+	}
+	w.Write([]byte("]"))
+
+
 }

@@ -12,7 +12,7 @@ type Status struct {
 //Customer data
 
 type Customers struct {
-	Customerinfo xml.Name `xml:"Customerinfo"`
+	XMLName xml.Name `xml:"Customerinfo"`
 	Status Status `xml:"Status"`
 	Customers []Customer `xml:"Customer"`
 
@@ -84,7 +84,7 @@ type Customer struct {
 
 //LedgerTransactions
 type LedgerTransactionInfo struct {
-	LedgerTransactionInfo string `xml:"LedgerTransactionInfo"`
+	XMLName xml.Name `xml:"LedgerTransactionInfo"`
 	Status Status `xml:"Status"`
 	LedgerTransactions LedgerTransactions `xml:"LedgerTransactions"`
 }
@@ -106,7 +106,7 @@ type LedgerTransaction struct {
 //CostUnits
 
 type CostUnitinfo struct {
-	CostUnitinfo string `xml:"CostUnitinfo"`
+	XMLName xml.Name `xml:"CostUnitinfo"`
 	Status Status `xml:"Status"`
 	CostUnit []CostUnit `xml:"CostUnit"`
 }

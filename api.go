@@ -13,7 +13,7 @@ import (
 //send post request with xml payload but with plain text content type (visma returns error if content type is XML ¯\_(ツ)_/¯
 //some VISMA methods need not only filter but also add constraints (eg CustomerNo) into request body
 //docs http://hjelp.vitari.no/VitariConnect/Vbus/Vitari%20Connect%20VismaBusiness.html
-func NewApi(url string, guid string, clientId int) *Api {
+func NewApi(url string, guid string, clientId string) *Api {
 	return &Api{url, guid, clientId}
 }
 
@@ -22,7 +22,7 @@ func NewApi(url string, guid string, clientId int) *Api {
 type Api struct {
 	url      string
 	guid     string
-	clientId int
+	clientId string
 }
 
 //GetCustomers send request to Visma GetCustomers end point
