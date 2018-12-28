@@ -4,7 +4,9 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 
-BINARY_BASE_NAME=sesam-ftps-csv-source
+BINARY_BASE_NAME=vitclient
+# Comment it out if needed
+export DOCKER_HOST=tcp://127.0.0.1:2375
 
 APP_NAME = ohuenno/$(BINARY_BASE_NAME)
 
@@ -18,7 +20,7 @@ endif
 
 all: deps test build
 build:
-	${PREBUILD_FLAGS} $(GOBUILD) -o $(BINARY_NAME) -v -ldflags="-s -w"
+	${PREBUILD_FLAGS} $(GOBUILD) -o $(BINARY_NAME) # -v -ldflags="-s -w"
 	$(BUILD_DOCKER)
 test:
 	$(GOTEST) -v ./...
@@ -30,4 +32,4 @@ run:
 	./$(BINARY_NAME)
 deps:
 	$(GOGET) github.com/gorilla/mux
-	$(GOGET) github.com/webguerilla/ftps
+	$(GOGET) github.com/pkg/errors

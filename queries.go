@@ -139,7 +139,47 @@ const (
    </LedgerTransaction>
  </LedgerTransactions>
 </LedgerTransactionInfo>`
+
+	PostCostUnit string = `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<CostUnitinfo>
+{header}
+ <Status>
+   <MessageId></MessageId>
+   <Message></Message>
+   <MessageDetail></MessageDetail>
+ </Status>
+ <CostUnit>
+   <CostUnitNumber>{costUnitNumber}</CostUnitNumber>
+   <OrgUnit1>{orgUnit1}</OrgUnit1>
+   <OrgUnit2></OrgUnit2>
+   <OrgUnit3></OrgUnit3>
+   <OrgUnit4></OrgUnit4>
+   <OrgUnit5></OrgUnit5>
+   <OrgUnit6></OrgUnit6>
+   <OrgUnit7></OrgUnit7>
+   <OrgUnit8></OrgUnit8>
+   <OrgUnit9></OrgUnit9>
+   <OrgUnit10></OrgUnit10>
+   <OrgUnit11></OrgUnit11>
+   <OrgUnit12></OrgUnit12>
+   <Name>{name}</Name>
+   <AddressLine1></AddressLine1>
+   <AddressLine2></AddressLine2>
+   <AddressLine3></AddressLine3>
+   <AddressLine4></AddressLine4>
+   <PostCode></PostCode>
+   <PostalArea></PostalArea>
+   <CustomerNo></CustomerNo>
+   <Status></Status>
+   <PlannedStartDate></PlannedStartDate>
+   <PlannedEndDate></PlannedEndDate>
+   <ActualStartDate></ActualStartDate>
+   <ActualEndDate></ActualEndDate>
+ </CostUnit>
+</CostUnitinfo>`
 )
+
+
 
 //args must be in form of placeholder_name, variable = "{header}", header, "{filters}", filters
 func buildQuery(query string, args ...string) string{

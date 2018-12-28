@@ -29,9 +29,12 @@ func main() {
 	}
 
 	router := mux.NewRouter()
+	//Get data
 	router.HandleFunc("/datasets/Customer/entities", _GetCustomers).Methods("GET")
 	router.HandleFunc("/datasets/CostUnit/entities", _GetCostUnits).Methods("GET")
 	router.HandleFunc("/datasets/LedgerTransaction/entities", _GetLedgerTransactions).Methods("GET")
+	//Update data
+	router.HandleFunc("/GetNextAvailableCostUnitAssignAndUpdate", _GetNextAvailableCostUnitAssignAndUpdate).Methods("POST")
 
 	log.Printf("Starting service on port %s", wsPort)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", wsPort), router))
@@ -102,7 +105,7 @@ func _GetCustomers(w http.ResponseWriter, r *http.Request) {
 	AddRowToFilter(&f, CreateFilterRow("CustomerNo",GreaterThanOrEqualTo, "0", "" ))
 	customers := api.GetCustomers(f)
 	if customers.Status.MessageID != 0 {
-		log.Printf("Couldn't fetch transactions: %s", customers.Status.Message)
+		log.Printf("Couldn't fetch customers: %s", customers.Status.Message)
 		http.Error(w, customers.Status.Message, http.StatusInternalServerError)
 		return
 	}
@@ -138,7 +141,7 @@ func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
 	costUnits := api.GetCostUnits(f, costUnitNumber)
 
 	if costUnits.Status.MessageID != 0 {
-		log.Printf("Couldn't fetch transactions: %s", costUnits.Status.Message)
+		log.Printf("Couldn't fetch CostUnits: %s", costUnits.Status.Message)
 		http.Error(w, costUnits.Status.Message, http.StatusInternalServerError)
 		return
 	}
@@ -162,4 +165,85 @@ func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("]"))
 
 
+}
+
+type SharepointDofiToVisma struct {
+	CommonProjNumber int `json:"Common_ProjNumber"`
+	PO_DOFINum string `json:"PO_DOFINum"`
+	PO_ProjectName string `json:"PO_ProjectName"`
+	IdInternal string `json:"_id"`
+	DH_Is_Updated bool `json:"DH_Is_Updated"`
+	Sys_Is_Request_To_Visma bool `json:"Sys_Is_Request_To_Visma"`
+	PO_ProjectGUID string `json:"PO_ProjectGUID"`
+	ID int `json:"ID"`
+	Status string
+	
+}
+
+//Brukes som HTTP transformasjon, tar en eller flere prosjekter fra Sesam,
+//henter tilgjengelige cost units fra Visma, knytter til, push tilbake til visma, og returnerer tilbake til sesam med
+//tilordnet prosjekt nr
+func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Request){
+	decoder := json.NewDecoder(r.Body)
+	var t []SharepointDofiToVisma
+	err := decoder.Decode(&t)
+	if err != nil {
+		panic(err)
+	}
+
+	var f Filter
+	var orgUnit = r.URL.Query().Get("orgUnit")
+	costUnitNumber,_ := strconv.Atoi(r.URL.Query().Get("costUnitNumber"))
+
+	AddRowToFilter(&f, CreateFilterRow("OrgUnit1", GreaterThanOrEqualTo, orgUnit, ""))
+	AddRowToFilter(&f, CreateFilterRow("Name", EqualTo, "NN", "AND"))
+	costUnits := api.GetCostUnits(f, costUnitNumber)
+	if costUnits.Status.MessageID != 0 {
+		log.Printf("Couldn't fetch CostUnits: %s", costUnits.Status.Message)
+		http.Error(w, costUnits.Status.Message, http.StatusInternalServerError)
+		return
+	}
+
+	if len(costUnits.CostUnit) < len(t){
+		log.Printf("Det kommet %d projects og Visma har kun %d ledige!", len(t), len(costUnits.CostUnit))
+		w.WriteHeader(500)
+		return
+	}
+
+	var first = true
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte("["))
+
+	for key, value := range t {
+		//log.Printf("%v",value)
+		var nextOrgUnit1Number = costUnits.CostUnit[key].OrgUnit1
+		var ProjName = value.PO_ProjectName
+
+		value.CommonProjNumber = nextOrgUnit1Number
+
+		if first {
+			first = false
+		} else {
+			w.Write([]byte(","))
+		}
+
+
+		//update Visma costUnit
+		costUnits := api.PutCostUnit(ProjName, costUnitNumber, nextOrgUnit1Number)
+		if costUnits.Status.MessageID != 0 {
+			log.Printf("Couldn't update cost unit: %s", costUnits.Status.Message)
+			value.Status = costUnits.Status.Message
+		} else {
+			value.Sys_Is_Request_To_Visma = true
+		}
+
+		jsonData, err := json.Marshal(value)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(jsonData)
+
+	}
+	w.Write([]byte("]"))
 }

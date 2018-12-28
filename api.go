@@ -73,6 +73,24 @@ func (r *Api) GetLedgerTransactions(f Filter) LedgerTransactionInfo {
 	return ledgerTransactionInfo
 }
 
+func (r *Api) PutCostUnit(name string, costUnitNumber int, orgUnit1Number int) CostUnitinfo {
+	queryBody := buildQuery(PostCostUnit,
+		"{header}",
+		BuildHeader(r.guid, r.clientId),
+		"{orgUnit1}", strconv.Itoa(orgUnit1Number),
+		"{name}", name,
+		"{costUnitNumber}", strconv.Itoa(costUnitNumber))
+
+	responseBytes, err := makeVismaApiRequest(r, "Accounting.svc/PutCostUnit", queryBody)
+	if err != nil {
+		fmt.Println(err)
+	}
+	var costUnitInfo CostUnitinfo
+	xml.Unmarshal(responseBytes, &costUnitInfo)
+
+	return costUnitInfo
+}
+
 //makeVismaApiRequest internal function construct and make HTTP request to Visma instance
 func makeVismaApiRequest(r *Api, endpoint string, queryBody string) ([]byte, error) {
 	resp, err := http.Post(r.url+endpoint, "text/plain", strings.NewReader(queryBody))
