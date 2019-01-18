@@ -12,6 +12,7 @@ import (
 )
 
 var api *Api
+
 //simple REST service to fetch data from Vitari Connect API and return as JSON
 func main() {
 	vismaUrl := os.Getenv("VISMA_URL")
@@ -69,31 +70,36 @@ func _GetLedgerTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("["))
 	first := true
 	for ; year <= currentYear; year++ {
-		for ; month <= currentMonth; month++ {
+		for ; month <= 12; month++ {
+			if year == currentYear && month > currentMonth {
+				break
+			}
+			log.Printf("Fetching transactions for %d/%d", year, month)
 			var f Filter
 			AddRowToFilter(&f, CreateFilterRow("Year", EqualTo, strconv.Itoa(year), ""))
 			AddRowToFilter(&f, CreateFilterRow("Period", EqualTo, strconv.Itoa(month), "AND"))
 			transactions := api.GetLedgerTransactions(f)
 			if transactions.Status.MessageID != 0 {
 				log.Printf("Couldn't fetch transactions: %s", transactions.Status.Message)
-				w.Write([]byte("]"))
-				return
-			}
-			for _, transaction := range transactions.LedgerTransactions.LedgerTransaction {
-				if first {
-					first = false
-				} else {
-					w.Write([]byte(","))
-				}
-				jsonData, err := json.Marshal(transaction)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				w.Write(jsonData)
+				log.Println("Trying next period")
+			} else {
+				for _, transaction := range transactions.LedgerTransactions.LedgerTransaction {
+					if first {
+						first = false
+					} else {
+						w.Write([]byte(","))
+					}
+					jsonData, err := json.Marshal(transaction)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					w.Write(jsonData)
 
+				}
 			}
 		}
+		month = 1
 	}
 	w.Write([]byte("]"))
 
@@ -102,7 +108,7 @@ func _GetCustomers(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
 	var f Filter
 	var first = true
-	AddRowToFilter(&f, CreateFilterRow("CustomerNo",GreaterThanOrEqualTo, "0", "" ))
+	AddRowToFilter(&f, CreateFilterRow("CustomerNo", GreaterThanOrEqualTo, "0", ""))
 	customers := api.GetCustomers(f)
 	if customers.Status.MessageID != 0 {
 		log.Printf("Couldn't fetch customers: %s", customers.Status.Message)
@@ -127,7 +133,6 @@ func _GetCustomers(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write([]byte("]"))
 
-
 }
 func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
@@ -135,7 +140,7 @@ func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
 	var f Filter
 	var first = true
 	var orgUnit = r.URL.Query().Get("orgUnit")
-	costUnitNumber,_ := strconv.Atoi(r.URL.Query().Get("costUnitNumber"))
+	costUnitNumber, _ := strconv.Atoi(r.URL.Query().Get("costUnitNumber"))
 
 	AddRowToFilter(&f, CreateFilterRow("OrgUnit1", GreaterThanOrEqualTo, orgUnit, ""))
 	costUnits := api.GetCostUnits(f, costUnitNumber)
@@ -164,26 +169,25 @@ func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write([]byte("]"))
 
-
 }
 
 type SharepointDofiToVisma struct {
-	CommonProjNumber int `json:"Common_ProjNumber"`
-	PO_DOFINum string `json:"PO_DOFINum"`
-	PO_ProjectName string `json:"PO_ProjectName"`
-	IdInternal string `json:"_id"`
-	DH_Is_Updated bool `json:"DH_Is_Updated"`
-	Sys_Is_Request_To_Visma bool `json:"Sys_Is_Request_To_Visma"`
-	PO_ProjectGUID string `json:"PO_ProjectGUID"`
-	ID int `json:"ID"`
-	Status string
-	
+	CommonProjNumber        int    `json:"Common_ProjNumber"`
+	PO_DOFINum              string `json:"PO_DOFINum"`
+	PO_ProjectName          string `json:"PO_ProjectName"`
+	IdInternal              string `json:"_id"`
+	DH_Is_Updated           bool   `json:"DH_Is_Updated"`
+	Sys_Is_Request_To_Visma bool   `json:"Sys_Is_Request_To_Visma"`
+	PO_ProjectGUID          string `json:"PO_ProjectGUID"`
+	ID                      int    `json:"ID"`
+	Status                  string
 }
 
 //Brukes som HTTP transformasjon, tar en eller flere prosjekter fra Sesam,
 //henter tilgjengelige cost units fra Visma, knytter til, push tilbake til visma, og returnerer tilbake til sesam med
 //tilordnet prosjekt nr
-func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Request){
+func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
 	decoder := json.NewDecoder(r.Body)
 	var t []SharepointDofiToVisma
 	err := decoder.Decode(&t)
@@ -193,10 +197,11 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 
 	var f Filter
 	var orgUnit = r.URL.Query().Get("orgUnit")
-	costUnitNumber,_ := strconv.Atoi(r.URL.Query().Get("costUnitNumber"))
+	costUnitNumber, _ := strconv.Atoi(r.URL.Query().Get("costUnitNumber"))
 
 	AddRowToFilter(&f, CreateFilterRow("OrgUnit1", GreaterThanOrEqualTo, orgUnit, ""))
 	AddRowToFilter(&f, CreateFilterRow("Name", EqualTo, "NN", "AND"))
+	AddRowToFilter(&f, CreateFilterRow("Name", EqualTo, "", "OR"))
 	costUnits := api.GetCostUnits(f, costUnitNumber)
 	if costUnits.Status.MessageID != 0 {
 		log.Printf("Couldn't fetch CostUnits: %s", costUnits.Status.Message)
@@ -204,7 +209,7 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if len(costUnits.CostUnit) < len(t){
+	if len(costUnits.CostUnit) < len(t) {
 		log.Printf("Det kommet %d projects og Visma har kun %d ledige!", len(t), len(costUnits.CostUnit))
 		w.WriteHeader(500)
 		return
@@ -219,6 +224,10 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 		var nextOrgUnit1Number = costUnits.CostUnit[key].OrgUnit1
 		var ProjName = value.PO_ProjectName
 
+		if len(ProjName) == 0 {
+			ProjName = "Project without name"
+		}
+
 		value.CommonProjNumber = nextOrgUnit1Number
 
 		if first {
@@ -227,13 +236,13 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 			w.Write([]byte(","))
 		}
 
-
 		//update Visma costUnit
 		costUnits := api.PutCostUnit(ProjName, costUnitNumber, nextOrgUnit1Number)
 		if costUnits.Status.MessageID != 0 {
 			log.Printf("Couldn't update cost unit: %s", costUnits.Status.Message)
 			value.Status = costUnits.Status.Message
 		} else {
+			log.Printf("Cost unit with orgNumber %d updated %s", nextOrgUnit1Number, costUnits.Status.Message)
 			value.Sys_Is_Request_To_Visma = true
 		}
 
