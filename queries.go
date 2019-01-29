@@ -135,6 +135,7 @@ const (
      <Period></Period>
      <AccountNo></AccountNo>
      <OrgUnit1></OrgUnit1>
+	 <OrgUnit9></OrgUnit9>
      <PostedAmountDomestic></PostedAmountDomestic>
    </LedgerTransaction>
  </LedgerTransactions>
@@ -179,10 +180,8 @@ const (
 </CostUnitinfo>`
 )
 
-
-
 //args must be in form of placeholder_name, variable = "{header}", header, "{filters}", filters
-func buildQuery(query string, args ...string) string{
+func buildQuery(query string, args ...string) string {
 	r := strings.NewReplacer(args...)
 	res := fmt.Sprintf(r.Replace(query))
 	return res

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -52,7 +53,7 @@ func _GetLedgerTransactions(w http.ResponseWriter, r *http.Request) {
 	var month int
 	if since == "" {
 		year = currentTime.Year()
-		month = int(currentTime.Month())
+		month = currentMonth
 	} else {
 		layout := "2006-01-02T15:04:05.000-0700"
 		//layout:= time.RFC3339
@@ -69,9 +70,10 @@ func _GetLedgerTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte("["))
 	first := true
-	for ; year <= currentYear; year++ {
+	for ; year <= currentYear+2; year++ {
+		runtime.GC()
 		for ; month <= 12; month++ {
-			if year == currentYear && month > currentMonth {
+			if year == currentYear+2 && month > 1 {
 				break
 			}
 			log.Printf("Fetching transactions for %d/%d", year, month)
@@ -104,6 +106,7 @@ func _GetLedgerTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("]"))
 
 }
+
 func _GetCustomers(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
 	var f Filter
