@@ -175,7 +175,7 @@ func _GetCostUnits(w http.ResponseWriter, r *http.Request) {
 }
 
 type SharepointDofiToVisma struct {
-	CommonProjNumber        int    `json:"Common_ProjNumber"`
+	CommonProjNumber        string `json:"Common_ProjNumber"`
 	PO_DOFINum              string `json:"PO_DOFINum"`
 	PO_ProjectName          string `json:"PO_ProjectName"`
 	IdInternal              string `json:"_id"`
@@ -184,6 +184,7 @@ type SharepointDofiToVisma struct {
 	PO_ProjectGUID          string `json:"PO_ProjectGUID"`
 	ID                      int    `json:"ID"`
 	Status                  string
+	Already_Exists          bool `json:"Already_Exists"`
 }
 
 //Brukes som HTTP transformasjon, tar en eller flere prosjekter fra Sesam,
@@ -192,8 +193,8 @@ type SharepointDofiToVisma struct {
 func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Servinq request %s from %s", r.RequestURI, r.Host)
 	decoder := json.NewDecoder(r.Body)
-	var t []SharepointDofiToVisma
-	err := decoder.Decode(&t)
+	var inputData []SharepointDofiToVisma
+	err := decoder.Decode(&inputData)
 	if err != nil {
 		panic(err)
 	}
@@ -207,13 +208,13 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 	AddRowToFilter(&f, CreateFilterRow("Name", EqualTo, "", "OR"))
 	costUnits := api.GetCostUnits(f, costUnitNumber)
 	if costUnits.Status.MessageID != 0 {
-		log.Printf("Couldn't fetch CostUnits: %s", costUnits.Status.Message)
+		log.Printf("Couldn'inputData fetch CostUnits: %s", costUnits.Status.Message)
 		http.Error(w, costUnits.Status.Message, http.StatusInternalServerError)
 		return
 	}
 
-	if len(costUnits.CostUnit) < len(t) {
-		log.Printf("Det kommet %d projects og Visma har kun %d ledige!", len(t), len(costUnits.CostUnit))
+	if len(costUnits.CostUnit) < len(inputData) {
+		log.Printf("Det kommet %d projects og Visma har kun %d ledige!", len(inputData), len(costUnits.CostUnit))
 		w.WriteHeader(500)
 		return
 	}
@@ -222,7 +223,12 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte("["))
 
-	for key, value := range t {
+	for key, value := range inputData {
+		if len(value.CommonProjNumber) > 0 {
+			log.Printf("Only entities without assigned project are expected here. Got entity with projectnr %s",
+				value.CommonProjNumber)
+			continue
+		}
 		//log.Printf("%v",value)
 		var nextOrgUnit1Number = costUnits.CostUnit[key].OrgUnit1
 		var ProjName = value.PO_ProjectName
@@ -231,7 +237,7 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 			ProjName = "Project without name"
 		}
 
-		value.CommonProjNumber = nextOrgUnit1Number
+		value.CommonProjNumber = strconv.Itoa(nextOrgUnit1Number)
 
 		if first {
 			first = false
@@ -242,7 +248,7 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 		//update Visma costUnit
 		costUnits := api.PutCostUnit(ProjName, costUnitNumber, nextOrgUnit1Number)
 		if costUnits.Status.MessageID != 0 {
-			log.Printf("Couldn't update cost unit: %s", costUnits.Status.Message)
+			log.Printf("Couldn'inputData update cost unit: %s", costUnits.Status.Message)
 			value.Status = costUnits.Status.Message
 		} else {
 			log.Printf("Cost unit with orgNumber %d updated %s", nextOrgUnit1Number, costUnits.Status.Message)
