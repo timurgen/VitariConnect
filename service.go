@@ -196,7 +196,9 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 	var inputData []SharepointDofiToVisma
 	err := decoder.Decode(&inputData)
 	if err != nil {
-		panic(err)
+		log.Printf("Kunne ikke parse input data: %s", err)
+		w.WriteHeader(400)
+		return
 	}
 
 	var f Filter
@@ -208,7 +210,7 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 	AddRowToFilter(&f, CreateFilterRow("Name", EqualTo, "", "OR"))
 	costUnits := api.GetCostUnits(f, costUnitNumber)
 	if costUnits.Status.MessageID != 0 {
-		log.Printf("Couldn'inputData fetch CostUnits: %s", costUnits.Status.Message)
+		log.Printf("Kunne ikke hente CostUnits: %s", costUnits.Status.Message)
 		http.Error(w, costUnits.Status.Message, http.StatusInternalServerError)
 		return
 	}
@@ -225,7 +227,7 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 
 	for key, value := range inputData {
 		if len(value.CommonProjNumber) > 0 {
-			log.Printf("Only entities without assigned project are expected here. Got entity with projectnr %s",
+			log.Printf("Kun entiteter uten tilordnet Visma prosjekt nummer forventes her, fikk: %s",
 				value.CommonProjNumber)
 			continue
 		}
@@ -237,8 +239,6 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 			ProjName = "Project without name"
 		}
 
-		value.CommonProjNumber = strconv.Itoa(nextOrgUnit1Number)
-
 		if first {
 			first = false
 		} else {
@@ -247,12 +247,13 @@ func _GetNextAvailableCostUnitAssignAndUpdate(w http.ResponseWriter, r *http.Req
 
 		//update Visma costUnit
 		costUnits := api.PutCostUnit(ProjName, costUnitNumber, nextOrgUnit1Number)
-		if costUnits.Status.MessageID != 0 {
-			log.Printf("Couldn'inputData update cost unit: %s", costUnits.Status.Message)
+		if costUnits.Status.MessageID != 0 || costUnits.Status.Message != "OK" {
+			log.Printf("Kunne ikke oppdatere cost unit: %s", costUnits.Status.Message)
 			value.Status = costUnits.Status.Message
 		} else {
-			log.Printf("Cost unit with orgNumber %d updated %s", nextOrgUnit1Number, costUnits.Status.Message)
+			log.Printf("Cost unit med orgNumber %d oppdatert %s", nextOrgUnit1Number, costUnits.Status.Message)
 			value.Sys_Is_Request_To_Visma = true
+			value.CommonProjNumber = strconv.Itoa(nextOrgUnit1Number)
 		}
 
 		jsonData, err := json.Marshal(value)
